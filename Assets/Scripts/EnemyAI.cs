@@ -7,9 +7,9 @@ public class EnemyAI : MonoBehaviour
     public float chaseRange = 6f;
 
     [Header("Patrol Settings")]
-    public float patrolDistance = 3f; // How far to walk left/right
+    public float patrolDistance = 3f; 
     private Vector2 startPosition;
-    private int patrolDirection = 1; // 1 for right, -1 for left
+    private int patrolDirection = 1; 
 
     [Header("Attack Settings")]
     public float attackRange = 1.5f;
@@ -23,6 +23,7 @@ public class EnemyAI : MonoBehaviour
     private Rigidbody2D rb;
     private SpriteRenderer sr;
     private Animator anim;
+    private EnemyHealth health; 
     private float nextAttackTime = 0f;
 
     void Start()
@@ -30,8 +31,9 @@ public class EnemyAI : MonoBehaviour
         rb = GetComponent<Rigidbody2D>();
         sr = GetComponent<SpriteRenderer>();
         anim = GetComponent<Animator>();
+        health = GetComponent<EnemyHealth>();
         
-        startPosition = transform.position; // Remember where we started
+        startPosition = transform.position;
 
         if (rb != null) rb.constraints = RigidbodyConstraints2D.FreezeRotation;
 
@@ -41,13 +43,17 @@ public class EnemyAI : MonoBehaviour
 
     void Update()
     {
+        // Ensure Z position stays at 0
         transform.position = new Vector3(transform.position.x, transform.position.y, 0);
+
+        // --- RECOIL CHECK ---
+        // If getting hit, don't run AI logic. Once recoil finishes, health.IsRecoiling becomes false.
+        if (health != null && health.IsRecoiling) return; 
 
         if (player == null) return;
 
         float dist = Vector2.Distance(transform.position, player.position);
 
-        // DECISION TREE
         if (dist < attackRange)
         {
             AttackLogic();
@@ -58,32 +64,21 @@ public class EnemyAI : MonoBehaviour
         }
         else
         {
-            // Player is far away, go back to patrolling
             Patrol();
         }
     }
 
     void Patrol()
     {
-        // 1. Calculate how far we have moved from the start point
         float distanceMoved = transform.position.x - startPosition.x;
 
-        // 2. Switch direction if we hit the patrol limits
-        if (patrolDirection == 1 && distanceMoved >= patrolDistance)
-        {
-            patrolDirection = -1;
-        }
-        else if (patrolDirection == -1 && distanceMoved <= -patrolDistance)
-        {
-            patrolDirection = 1;
-        }
+        if (patrolDirection == 1 && distanceMoved >= patrolDistance) patrolDirection = -1;
+        else if (patrolDirection == -1 && distanceMoved <= -patrolDistance) patrolDirection = 1;
 
-        // 3. Apply movement
-        if (rb != null) rb.linearVelocity = new Vector2(patrolDirection * speed * 0.5f, rb.linearVelocity.y); // Walk slower while patrolling
+        if (rb != null) rb.linearVelocity = new Vector2(patrolDirection * speed * 0.5f, rb.linearVelocity.y);
 
-        // 4. Visuals
         FaceMovementDirection(patrolDirection);
-        if (anim != null) anim.SetBool("isChasing", true); // Using chase animation for walking
+        if (anim != null) anim.SetBool("isChasing", true); 
     }
 
     void Chase()
@@ -105,7 +100,6 @@ public class EnemyAI : MonoBehaviour
                 anim.SetBool("isChasing", false);
             }
             nextAttackTime = Time.time + attackCooldown;
-            Debug.Log("Pow! Mushroom hit the player!");
         }
         else
         {
@@ -128,20 +122,6 @@ public class EnemyAI : MonoBehaviour
     void FaceMovementDirection(float direction)
     {
         if (sr == null) return;
-        // If moving right (1), flip based on spriteFacesLeft setting
         sr.flipX = (direction > 0) ? spriteFacesLeft : !spriteFacesLeft;
-    }
-
-    void OnDrawGizmosSelected()
-    {
-        Gizmos.color = Color.red;
-        Gizmos.DrawWireSphere(transform.position, chaseRange);
-        Gizmos.color = Color.yellow;
-        Gizmos.DrawWireSphere(transform.position, attackRange);
-
-        // Draw Patrol Range in Blue
-        Gizmos.color = Color.blue;
-        Vector3 start = (Application.isPlaying) ? (Vector3)startPosition : transform.position;
-        Gizmos.DrawLine(start + Vector3.left * patrolDistance, start + Vector3.right * patrolDistance);
     }
 }

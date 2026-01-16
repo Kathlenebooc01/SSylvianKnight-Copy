@@ -11,11 +11,12 @@ public class ArrowDamage : MonoBehaviour
 
         if (enemy != null)
         {
-            enemy.TakeDamage(damageAmount); // Deal Damage
+            // FIX: Added 'transform' as the second argument
+            enemy.TakeDamage(damageAmount, transform); 
             Destroy(gameObject); // Destroy the Arrow
         }
-        // If we hit the ground (optional check), destroy arrow
-        else if (other.gameObject.tag == "Ground")
+        // If we hit the ground, destroy arrow
+        else if (other.gameObject.CompareTag("Ground"))
         {
             Destroy(gameObject);
         }
