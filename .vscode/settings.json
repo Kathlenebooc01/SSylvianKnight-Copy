@@ -67,5 +67,5 @@
         "*.sln": "*.csproj",
         "*.slnx": "*.csproj"
     },
-    "dotnet.defaultSolution": "copy game dev.slnx"
+    "dotnet.defaultSolution": "SSylvianKnight.slnx"
 }

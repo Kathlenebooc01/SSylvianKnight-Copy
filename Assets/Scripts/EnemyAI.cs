@@ -6,21 +6,23 @@ public class EnemyAI : MonoBehaviour
     public float speed = 3f;
     public float chaseRange = 6f;
 
+    [Header("Patrol Settings")]
+    public float patrolDistance = 3f; // How far to walk left/right
+    private Vector2 startPosition;
+    private int patrolDirection = 1; // 1 for right, -1 for left
+
     [Header("Attack Settings")]
-    public float attackRange = 1.5f; // How close to stand before punching
-    public float attackCooldown = 2f; // Wait 2 seconds between hits
-    public int damage = 1; // How much it hurts
+    public float attackRange = 1.5f;
+    public float attackCooldown = 2f;
+    public int damage = 1;
 
     [Header("Art Settings")]
-    [Tooltip("Check this if sprite looks Left by default")]
     public bool spriteFacesLeft = false;
 
     private Transform player;
     private Rigidbody2D rb;
     private SpriteRenderer sr;
     private Animator anim;
-
-    // Timer to track cooldown
     private float nextAttackTime = 0f;
 
     void Start()
@@ -28,6 +30,8 @@ public class EnemyAI : MonoBehaviour
         rb = GetComponent<Rigidbody2D>();
         sr = GetComponent<SpriteRenderer>();
         anim = GetComponent<Animator>();
+        
+        startPosition = transform.position; // Remember where we started
 
         if (rb != null) rb.constraints = RigidbodyConstraints2D.FreezeRotation;
 
@@ -37,7 +41,6 @@ public class EnemyAI : MonoBehaviour
 
     void Update()
     {
-        // Safety: Keep Z axis at 0
         transform.position = new Vector3(transform.position.x, transform.position.y, 0);
 
         if (player == null) return;
@@ -47,68 +50,68 @@ public class EnemyAI : MonoBehaviour
         // DECISION TREE
         if (dist < attackRange)
         {
-            // We are close enough to hit!
-            if (Time.time >= nextAttackTime)
-            {
-                Attack();
-            }
-            else
-            {
-                // Waiting for cooldown... just stand still and face player
-                StopMoving();
-                FacePlayer();
-            }
+            AttackLogic();
         }
         else if (dist < chaseRange)
         {
-            // Too far to hit, but close enough to chase
             Chase();
         }
         else
         {
-            // Player lost, chill out
-            StopChasing();
+            // Player is far away, go back to patrolling
+            Patrol();
         }
+    }
+
+    void Patrol()
+    {
+        // 1. Calculate how far we have moved from the start point
+        float distanceMoved = transform.position.x - startPosition.x;
+
+        // 2. Switch direction if we hit the patrol limits
+        if (patrolDirection == 1 && distanceMoved >= patrolDistance)
+        {
+            patrolDirection = -1;
+        }
+        else if (patrolDirection == -1 && distanceMoved <= -patrolDistance)
+        {
+            patrolDirection = 1;
+        }
+
+        // 3. Apply movement
+        if (rb != null) rb.linearVelocity = new Vector2(patrolDirection * speed * 0.5f, rb.linearVelocity.y); // Walk slower while patrolling
+
+        // 4. Visuals
+        FaceMovementDirection(patrolDirection);
+        if (anim != null) anim.SetBool("isChasing", true); // Using chase animation for walking
     }
 
     void Chase()
     {
         FacePlayer();
-
-        // Move
         float direction = Mathf.Sign(player.position.x - transform.position.x);
         if (rb != null) rb.linearVelocity = new Vector2(direction * speed, rb.linearVelocity.y);
-
         if (anim != null) anim.SetBool("isChasing", true);
     }
 
-    void Attack()
+    void AttackLogic()
     {
-        // 1. Stop moving so we don't slide while punching
-        StopMoving();
-
-        // 2. Play Animation
-        if (anim != null)
+        if (Time.time >= nextAttackTime)
         {
-            anim.SetTrigger("attack");
-            anim.SetBool("isChasing", false); // Stop run animation
+            StopMoving();
+            if (anim != null)
+            {
+                anim.SetTrigger("attack");
+                anim.SetBool("isChasing", false);
+            }
+            nextAttackTime = Time.time + attackCooldown;
+            Debug.Log("Pow! Mushroom hit the player!");
         }
-
-        // 3. Reset Cooldown
-        nextAttackTime = Time.time + attackCooldown;
-
-        // 4. Deal Damage (Simple Logic)
-        // This instantly hurts the player. Later we can make it sync with the punch frame.
-        Debug.Log("Pow! Mushroom hit the player!");
-
-        // TODO: Add code here later to actually subtract HP from Player
-        // player.GetComponent<PlayerHealth>().TakeDamage(damage);
-    }
-
-    void StopChasing()
-    {
-        StopMoving();
-        if (anim != null) anim.SetBool("isChasing", false);
+        else
+        {
+            StopMoving();
+            FacePlayer();
+        }
     }
 
     void StopMoving()
@@ -118,25 +121,27 @@ public class EnemyAI : MonoBehaviour
 
     void FacePlayer()
     {
-        if (sr == null) return;
-
-        bool playerIsRight = (player.position.x > transform.position.x);
-
-        if (playerIsRight)
-            sr.flipX = spriteFacesLeft;
-        else
-            sr.flipX = !spriteFacesLeft;
+        float dir = Mathf.Sign(player.position.x - transform.position.x);
+        FaceMovementDirection(dir);
     }
 
-    // DRAW RANGES
+    void FaceMovementDirection(float direction)
+    {
+        if (sr == null) return;
+        // If moving right (1), flip based on spriteFacesLeft setting
+        sr.flipX = (direction > 0) ? spriteFacesLeft : !spriteFacesLeft;
+    }
+
     void OnDrawGizmosSelected()
     {
-        // Chase Range (Red)
         Gizmos.color = Color.red;
         Gizmos.DrawWireSphere(transform.position, chaseRange);
-
-        // Attack Range (Yellow)
         Gizmos.color = Color.yellow;
         Gizmos.DrawWireSphere(transform.position, attackRange);
+
+        // Draw Patrol Range in Blue
+        Gizmos.color = Color.blue;
+        Vector3 start = (Application.isPlaying) ? (Vector3)startPosition : transform.position;
+        Gizmos.DrawLine(start + Vector3.left * patrolDistance, start + Vector3.right * patrolDistance);
     }
 }
